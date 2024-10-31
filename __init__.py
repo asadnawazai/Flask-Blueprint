@@ -1,5 +1,5 @@
 from flask import Blueprint
 
-project1_bp = Blueprint('project1', __name__, template_folder='templates')
+project2_bp = Blueprint('project2', __name__, template_folder='templates')
 
 from . import routes

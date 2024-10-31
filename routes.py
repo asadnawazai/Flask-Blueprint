@@ -1,52 +1,36 @@
-from flask import render_template, request, jsonify
-import joblib
-import pandas as pd
-from . import project1_bp
-from utils_p1 import food
+from flask import render_template, request
+import pickle
+from . import project2_bp
+
+with open(r'C:\Users\Dell User\Desktop\Flask-Blueprints\models\food_recommendation_model.pkl', 'rb') as model_file:
+    model = pickle.load(model_file)
+
+with open(r'C:\Users\Dell User\Desktop\Flask-Blueprints\models\label_encoders.pkl', 'rb') as encoders_file:
+    label_encoder_country, label_encoder_weather, label_encoder_food_type, mlb = pickle.load(encoders_file)
 
 
-column_transformer = joblib.load(r'C:\Users\Dell User\Desktop\Flask-Blueprints\models\column_transformer.pkl')
-model = joblib.load(r'C:\Users\Dell User\Desktop\Flask-Blueprints\models\wine_recommendation_model.pkl')
+countries = ['USA', 'Italy', 'India', 'Japan']
+weathers = ['Sunny', 'Rainy', 'Moderate', 'Cold']
+food_types = ['Breakfast', 'Lunch', 'Dinner', 'Snacks']
 
-dishes = ['Grilled Steak', 'Spaghetti Carbonara', 'Caesar Salad', 'Roasted Salmon', 'Chicken Alfredo', 'Margherita Pizza', 'Shrimp Tacos', 'Dark Chocolate Cake']
-ingredients = ['Beef, Salt, Pepper, Garlic', 'Pasta, Egg, Bacon, Parmesan', 'Romaine, Croutons, Parmesan, Anchovy', 'Salmon, Lemon, Dill, Olive Oil', 'Chicken, Cream, Butter, Parmesan', 'Tomato, Mozzarella, Basil', 'Shrimp, Lime, Cilantro, Avocado', 'Cocoa, Sugar, Butter']
-cooking_styles = ['Grilled', 'Boiled', 'Fresh', 'Roasted', 'Creamy', 'Baked', 'Grilled', 'Baked']
-flavors = ['Savory, Umami', 'Creamy, Salty', 'Salty, Tangy', 'Citrusy, Savory', 'Rich, Savory', 'Savory, Herby', 'Spicy, Citrusy', 'Sweet, Rich']
-textures = ['Tender', 'Creamy', 'Crunchy', 'Flaky', 'Creamy', 'Crispy', 'Crunchy', 'Dense']
-
-@project1_bp.route('/', methods=['GET', 'POST'])
-def predict():
-    prediction = None
+@project2_bp.route('/', methods=['GET', 'POST'])
+def index():
+    recommendations = None
+    
     if request.method == 'POST':
-        input_data = pd.DataFrame({
-            'Dish Name': [request.form.get('dish_name')],
-            'Ingredients': [request.form.get('ingredients')],
-            'Cooking Style': [request.form.get('cooking_style')],
-            'Flavors': [request.form.get('flavors')],
-            'Texture': [request.form.get('texture')]
-        })
-        transformed_input = column_transformer.transform(input_data)
-        prediction = model.predict(transformed_input)[0]
 
-    return render_template('form.html', prediction=prediction, dishes=dishes, 
-                           ingredients=ingredients, cooking_styles=cooking_styles,
-                           flavors=flavors, textures=textures)
+        country = request.form.get('country')
+        weather = request.form.get('weather')
+        food_type = request.form.get('food_type')
 
-@project1_bp.route('/api/predict', methods=['POST'])
-def api_predict():
-    data = request.json
-    required_fields = ['dish_name', 'ingredients', 'cooking_style', 'flavors', 'texture']
-    if not all(field in data for field in required_fields):
-        return jsonify({'error': 'Missing fields in request'}), 400
+        encoded_country = label_encoder_country.transform([country])[0]
+        encoded_weather = label_encoder_weather.transform([weather])[0]
+        encoded_food_type = label_encoder_food_type.transform([food_type])[0]
+        
 
-    input_data = pd.DataFrame({
-        'Dish Name': [data['dish_name']],
-        'Ingredients': [data['ingredients']],
-        'Cooking Style': [data['cooking_style']],
-        'Flavors': [data['flavors']],
-        'Texture': [data['texture']]
-    })
-    transformed_input = column_transformer.transform(input_data)
-    prediction = model.predict(transformed_input)[0]
+        input_features = [[encoded_country, encoded_weather, encoded_food_type]]
 
-    return jsonify({'prediction': prediction})
+        predicted_labels = model.predict(input_features)
+        recommendations = mlb.inverse_transform(predicted_labels)[0]
+    
+    return render_template('index.html', recommendations=recommendations, countries=countries, weathers=weathers, food_types=food_types)
